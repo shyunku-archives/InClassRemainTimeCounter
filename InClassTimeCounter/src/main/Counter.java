@@ -30,6 +30,7 @@ import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JPasswordField;
 import javax.swing.JSlider;
 import javax.swing.JTextField;
 import javax.swing.event.ChangeEvent;
@@ -39,10 +40,11 @@ public class Counter extends JPanel{
 	public static Point mouse = new Point(0,0);
 	private static boolean isAOT = true;
 	
-	private static JSlider AlphaChooser = new JSlider(JSlider.HORIZONTAL, 5, 100, 80);
+	private static JSlider AlphaChooser = new JSlider(JSlider.HORIZONTAL, 3, 100, 60);
 	private SimpleDateFormat debugFormat = new SimpleDateFormat("yyyy/MM/dd a h:mm:ss", Locale.KOREA);
 	private SimpleDateFormat curTimeFormat = new SimpleDateFormat("a h:mm", Locale.KOREA);
 	public static MyDialog settingDialog = null;
+	public static EverytimeDialog everytimeDialog = null;
 	public static long endFlag = 0;
 	public static long registerFlag = 0;
 	private static double alpha = 0.8;
@@ -60,6 +62,10 @@ public class Counter extends JPanel{
 		
 		//setting area
 		g.drawImage(Global.SettingIcon, null, Global.SETTING_AREA.x, Global.SETTING_AREA.y);
+		
+		//everytime icon area
+		g.drawImage(Global.EverytimeIcon, null, Global.EVERYTIME_AREA.x, Global.EVERYTIME_AREA.y);
+		
 		//draggable area
 		g.setColor(new Color(50, 50, 255, (int)(255*alpha)));
 		g.fill(Global.DRAGGABLE_AREA);
@@ -79,6 +85,9 @@ public class Counter extends JPanel{
 		long diff = endFlag-System.currentTimeMillis();
 		long total = endFlag-registerFlag;
 		double prate = (double)(total-diff)/(double)total;
+		double arate = 0;
+		if(total>(diff+10))
+			arate = (double)diff/(double)(total-diff);
 		boolean activate = true;
 		if(diff < 0) {
 			diff = 0;
@@ -114,6 +123,11 @@ public class Counter extends JPanel{
 		g.drawString("진행도", 15, 115);
 		
 		if(activate) {
+			String dds = String.format("%.5f", arate);
+			
+			setFontSize(g, 12F);
+			g.drawString("x"+dds, 335, 55);
+			
 			g.setColor(new Color((int)(220*prate), 0, 0));
 			setFontSize(g, 70F);
 			double pr = prate*100;
@@ -148,6 +162,8 @@ public class Counter extends JPanel{
 			Global.ExitIcon = ImageIO.read(new File("static\\EXIT_ICON.png"));
 			Global.IncreaseIcon = ImageIO.read(new File("static\\up.png"));
 			Global.DecreaseIcon = ImageIO.read(new File("static\\down.png"));
+			Global.EverytimeIcon = ImageIO.read(new File("static\\logo.png"));
+			Global.HighResEverytimeIcon = ImageIO.read(new File("static\\HIGH_RESOL_LOGO.png"));
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -155,12 +171,12 @@ public class Counter extends JPanel{
 	}
 	
 	public static void main(String[] args) {
-		JFrame frame = new JFrame("");
+		JFrame frame = new JFrame("InClassRemainCounter");
 		frame.setBounds(Global.FRAME_BOUNDARY);
 		frame.setUndecorated(true);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.setVisible(true);
-		frame.setBackground(new Color(200, 200, 200, (int)((double)255*0.8)));
+		frame.setBackground(new Color(255, 255, 255, (int)((double)255*0.6)));
 		
 		init();
 		
@@ -177,14 +193,15 @@ public class Counter extends JPanel{
 				// TODO Auto-generated method stub
 				int val = ((JSlider)e.getSource()).getValue();
 				double rate = (double)val/100;
-				frame.setBackground(new Color(200, 200, 200, (int)((double)255*rate)));
+				frame.setBackground(new Color(255, 255, 255, (int)((double)255*rate)));
 				
 				alpha = rate;
 			}
 		});
 		counter.add(AlphaChooser);
 		
-		settingDialog = new MyDialog(frame, "picker");
+		settingDialog = new MyDialog(frame, "종료 날짜/시간");
+		everytimeDialog = new EverytimeDialog(frame, "에브리타임 계정");
 		frame.add(counter);
 		frame.setAlwaysOnTop(isAOT);
 		
@@ -195,7 +212,7 @@ public class Counter extends JPanel{
 					counter.repaint();
 					frame.repaint();
 					try {
-						Thread.sleep(1);
+						Thread.sleep(1000/144);
 					} catch (InterruptedException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
@@ -230,12 +247,14 @@ public class Counter extends JPanel{
 				if(Global.SETTING_AREA.contains(mouse)) {
 					settingDialog.setVisible(!settingDialog.isVisible());
 					if(settingDialog.isVisible())
-						settingDialog.init();
+						settingDialog.init(frame);
 				}else if(Global.EXIT_AREA.contains(mouse)) {
 					System.exit(0);
 				}else if(Global.PIN_AREA.contains(mouse)) {
 					isAOT = !isAOT;
 					frame.setAlwaysOnTop(isAOT);
+				}else if(Global.EVERYTIME_AREA.contains(mouse)) {
+					everytimeDialog.setVisible(!everytimeDialog.isVisible());
 				}
 			}
 
@@ -274,8 +293,8 @@ public class Counter extends JPanel{
 		public JTextField textField = new JTextField("");
 		public JButton okButton = new JButton("설정");
 		public JLabel afterStr = new JLabel("오후");
-		public JLabel fixedStr = new JLabel("2013/09/23");
-		public JLabel timeStr = new JLabel("11:23");
+		public JLabel fixedStr = new JLabel("20--/--/--");
+		public JLabel timeStr = new JLabel("--:--");
 		public JButton upHour = new JButton();
 		public JButton upMin = new JButton();
 		public JButton downHour = new JButton();
@@ -287,7 +306,7 @@ public class Counter extends JPanel{
 		
 		private SimpleDateFormat sdfa = new SimpleDateFormat("yyyy/MM/dd");
 		
-		void init() {
+		void init(JFrame frame) {
 			fixedStr.setText(sdfa.format(System.currentTimeMillis()));
 			
 			Date d = new Date();
@@ -298,12 +317,14 @@ public class Counter extends JPanel{
 			hour = cal.get(Calendar.HOUR);
 			min = cal.get(Calendar.MINUTE);
 			timeStr.setText(String.format("%02d:%02d",hour,min));
+			
+			setLocation(frame.getLocation());
 		}
 		
 		public MyDialog(JFrame frame, String title) {
 			super(frame, title);
 			setLayout(null);
-			init();
+			init(frame);
 			
 			upHour.setIcon(new ImageIcon(Global.IncreaseIcon));
 			upMin.setIcon(new ImageIcon(Global.IncreaseIcon));
@@ -324,7 +345,7 @@ public class Counter extends JPanel{
 			fixedStr.setBounds(15,15, 120, 30);
 			afterStr.setBounds(140, 15, 40, 30);
 			timeStr.setBounds(210,15,60,30);
-			okButton.setBounds(35, 60, 100, 30);
+			okButton.setBounds(35, 60, 230, 30);
 			add(afterStr);
 			add(fixedStr);
 			add(timeStr);
@@ -334,6 +355,7 @@ public class Counter extends JPanel{
 			add(downHour);
 			add(downMin);
 			
+			setLocation(1920 - Global.FRAME_DIMEN.width, 1080-Global.FRAME_DIMEN.height-30);
 			setSize(315, 150);
 			okButton.addActionListener(new ActionListener() {
 				@Override
@@ -411,13 +433,12 @@ public class Counter extends JPanel{
 				@Override
 				public void actionPerformed(ActionEvent arg0) {
 					// TODO Auto-generated method stub
-					if(min%15==0) {
+					if(min%15==0)
 						min+=15;
-						if(min>=60)
-							min = 0;
-					}else {
+					else
 						min += 15-min%15;
-					}
+					if(min>=60)
+						min = 0;
 					updateTime();
 				}
 			});
@@ -438,6 +459,58 @@ public class Counter extends JPanel{
 		
 		private void updateTime() {
 			timeStr.setText(String.format("%02d:%02d",hour,min));
+		}
+	}
+	private static class EverytimeDialog extends JDialog{
+		public JTextField idField = new JTextField();
+		public JPasswordField pwField = new JPasswordField();
+		public JButton okButton = new JButton("로그인");
+		public void init(JFrame frame) {
+			Point p = frame.getLocation();
+			setLocation(p.x, p.y - 50);
+		}
+		
+		public EverytimeDialog(JFrame frame, String title) {
+			super(frame, title);
+			setLayout(null);
+			setSize(435, 200);
+			init(frame);
+			
+			this.setBackground(Color.WHITE);
+			this.getContentPane().setBackground(Color.WHITE);
+			
+			JLabel a = new JLabel("계정 ID");
+			JLabel b = new JLabel("계정 PW");
+			JLabel everytimeLogo;
+			ImageIcon icon = new ImageIcon(Global.HighResEverytimeIcon);
+			
+			a.setBounds(45, 75, 80, 25);
+			b.setBounds(45, 110, 80, 25);
+			everytimeLogo = new JLabel(icon);
+			everytimeLogo.setBounds(this.getWidth()/2-icon.getIconWidth()/2, 15, icon.getIconWidth(), icon.getIconHeight());
+			idField.setBounds(130, 75, 150, 25);
+			pwField.setBounds(130, 110, 150, 25);
+			okButton.setBounds(300, 75, 70, 60);
+			
+			a.setFont(Global.CUSTOM_FONT.deriveFont(18F));
+			b.setFont(Global.CUSTOM_FONT.deriveFont(18F));
+			idField.setFont(Global.CUSTOM_FONT.deriveFont(18F));
+			okButton.setFont(Global.CUSTOM_FONT.deriveFont(13F));
+			
+			add(a);
+			add(b);
+			add(everytimeLogo);
+			add(idField);
+			add(pwField);
+			add(okButton);
+			
+			okButton.addActionListener(new ActionListener() {
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					// TODO Auto-generated method stub
+					setVisible(false);
+				}
+			});
 		}
 	}
 }
