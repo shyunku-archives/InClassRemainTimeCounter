@@ -17,28 +17,51 @@ import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.io.File;
 import java.io.IOException;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 import javax.imageio.ImageIO;
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
+import javax.swing.JScrollPane;
 import javax.swing.JSlider;
+import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.SwingConstants;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
+import javax.swing.table.DefaultTableCellRenderer;
+
+import org.jsoup.Connection.Response;
+import org.jsoup.HttpStatusException;
+import org.jsoup.Connection;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 
 public class Counter extends JPanel{
 	public static Point mouse = new Point(0,0);
 	private static boolean isAOT = true;
+	
+	private static ArrayList<ClassInfo> cInfoBundle = new ArrayList<>();
+	private static String username = "";
 	
 	private static JSlider AlphaChooser = new JSlider(JSlider.HORIZONTAL, 3, 100, 60);
 	private SimpleDateFormat debugFormat = new SimpleDateFormat("yyyy/MM/dd a h:mm:ss", Locale.KOREA);
@@ -48,6 +71,8 @@ public class Counter extends JPanel{
 	public static long endFlag = 0;
 	public static long registerFlag = 0;
 	private static double alpha = 0.8;
+	
+	private static int table_selected_result = -2;
 	
 	public void paintComponent(Graphics gp) {
 		Graphics2D g = (Graphics2D)gp;
@@ -67,8 +92,13 @@ public class Counter extends JPanel{
 		g.drawImage(Global.EverytimeIcon, null, Global.EVERYTIME_AREA.x, Global.EVERYTIME_AREA.y);
 		
 		//draggable area
-		g.setColor(new Color(50, 50, 255, (int)(255*alpha)));
+		g.setColor(isClassExist()?new Color(255, 100, 100, (int)(255*alpha)):new Color(100, 100, 255, (int)(255*alpha)));
 		g.fill(Global.DRAGGABLE_AREA);
+		g.setColor(Color.BLACK);
+		setFontSize(g, 12F);
+		if(isClassExist())
+			g.drawString(username+"님 에브리타임에 연결됨", Global.DEFAULT_TILE_SIZE*2 + 10, Global.DEFAULT_TILE_SIZE - 5);
+		
 		
 		//Pinning area
 		if(isAOT) g.drawImage(Global.PinnedIcon, null, Global.PIN_AREA.x, Global.PIN_AREA.y);
@@ -81,6 +111,13 @@ public class Counter extends JPanel{
 		g.setColor(Color.BLACK);
 		
 		String curTimeU = curTimeFormat.format(System.currentTimeMillis());
+		
+		
+		
+		if(isClassExist()) {
+			Pair p = isInClass();
+			endFlag = (long)p.third;
+		}
 		
 		long diff = endFlag-System.currentTimeMillis();
 		long total = endFlag-registerFlag;
@@ -105,7 +142,19 @@ public class Counter extends JPanel{
 		long min = diff/60;
 		long sec = diff%60;
 		
-		String diffStr = String.format("%d:%02d:%02d", hour, min,sec);
+		String diffStr = String.format("%02d:%02d:%02d", hour, min,sec);
+		
+		
+//		setFontSize(g, 12F);
+//		g.drawString("다음 수업", 185, 45);
+		if(isClassExist()) {
+			Pair p = isInClass();
+			endFlag = (long)p.third;
+			ClassInfo ci = (ClassInfo)p.second;
+			
+			setFontSize(g, 12F);
+			g.drawString(ci.getClassName()+"("+ci.getProfessorName()+" 교수님) 수업"+(((boolean)p.first)?"":"까지"), 185, 45);
+		}
 		
 		setFontSize(g, 12F);
 		g.drawString("현재 시각", 15, 45);
@@ -114,34 +163,78 @@ public class Counter extends JPanel{
 		setFontSize(g, 10F);
 		g.drawString(String.format("%02d", (System.currentTimeMillis()/1000)%60), 160+(curTimeU.length()-7)*12, 45);
 		setFontSize(g, 12F);
-		g.drawString("남은 시간", 15, 85);
+		g.drawString("남은 시간", 15, 90);
 		setFontSize(g, 30F);
-		g.drawString(diffStr, 75, 85);
+		g.drawString(diffStr, 75, 90);
 		setFontSize(g, 15F);
-		g.drawString("."+String.format("%03d", msec), 185, 85);
+		g.drawString("."+String.format("%03d", msec), 200, 90);
 		setFontSize(g, 12F);
-		g.drawString("진행도", 15, 115);
+		g.drawString("진행도", 15, 120);
 		
 		if(activate) {
-			String dds = String.format("%.5f", arate);
+			String dds = String.format("%.6f", arate);
 			
 			setFontSize(g, 12F);
-			g.drawString("x"+dds, 335, 55);
+			g.drawString("x"+dds, 330, 65);
 			
 			g.setColor(new Color((int)(220*prate), 0, 0));
-			setFontSize(g, 70F);
+			setFontSize(g, 50F);
 			double pr = prate*100;
-			g.drawString(String.format("%02d",(int)pr), 240, 85);
-			setFontSize(g, 20F);
+			g.drawString(String.format("%02d",(int)pr), 265, 90);
+			setFontSize(g, 18F);
 			String ff = String.format("%.5f%%", pr-Math.floor(pr));
 			ff = ff.substring(1);
-			g.drawString(ff, 330, 85);
+			g.drawString(ff, 330, 90);
 		}
 		
 		g.setColor(new Color(50,50,50));
-		g.fillRoundRect(75, 103, 345, 15, 8, 8);
+		g.fillRoundRect(75, 108, 345, 15, 8, 8);
 		g.setColor(new Color(70,255,70));
-		g.fillRoundRect(75, 103, (int)((double)345*prate), 15, 8, 8);
+		g.fillRoundRect(75, 108, (int)((double)345*prate), 15, 8, 8);
+
+	}
+	
+	private boolean isClassExist() {
+		return !cInfoBundle.isEmpty();
+	}
+	
+	private Pair<Boolean, ClassInfo, Long> isInClass() {
+		long time = 0;
+		Calendar c = Calendar.getInstance();
+		c.setTimeInMillis(System.currentTimeMillis());
+		time += ((c.get(Calendar.DAY_OF_WEEK)+5)%7)*86400000;
+		time += c.get(Calendar.HOUR_OF_DAY) * 3600000;
+		time += c.get(Calendar.MINUTE) * 60000;
+		time += c.get(Calendar.SECOND) * 1000;
+		time += c.get(Calendar.MILLISECOND);
+		
+		for(int i=0;i<cInfoBundle.size();i++) {
+			ClassInfo ci = cInfoBundle.get(i);
+			if(time <= ci.getcInfo().getRelativeEndTime() && time >= ci.getcInfo().getRelativeStartTime()) {
+				//수업중
+				long diff = time - ci.getcInfo().getRelativeStartTime();
+				return new Pair<Boolean, ClassInfo, Long>(true, ci, System.currentTimeMillis() + diff);
+			}
+		}
+		
+		for(int i=0;i<cInfoBundle.size();i++) {
+			ClassInfo ci = cInfoBundle.get(i);
+			if(time < ci.getcInfo().getRelativeStartTime()) {
+				long diff = ci.getcInfo().getRelativeStartTime() - time;
+				return new Pair<Boolean, ClassInfo, Long>(false, ci, System.currentTimeMillis() + diff);
+			}
+		}
+		
+		long diff = 7*86400*1000 - time + cInfoBundle.get(0).getcInfo().getRelativeStartTime();
+		return new Pair<Boolean, ClassInfo, Long>(false, cInfoBundle.get(0), System.currentTimeMillis() + diff);
+	}
+	
+	private ClassInfo getCurrentClassInfo() {
+		return null;
+	}
+	
+	private ClassInfo getNextClassInfo() {
+		return null;
 	}
 	
 	public static void init() {
@@ -371,6 +464,7 @@ public class Counter extends JPanel{
 					c.set(Calendar.SECOND, 0);
 					endFlag = c.getTimeInMillis();
 					registerFlag = System.currentTimeMillis();
+					cInfoBundle.clear();
 					setVisible(false);
 				}
 			});
@@ -465,6 +559,8 @@ public class Counter extends JPanel{
 		public JTextField idField = new JTextField();
 		public JPasswordField pwField = new JPasswordField();
 		public JButton okButton = new JButton("로그인");
+		
+		private JFrame jf = null;
 		public void init(JFrame frame) {
 			Point p = frame.getLocation();
 			setLocation(p.x, p.y - 50);
@@ -472,6 +568,7 @@ public class Counter extends JPanel{
 		
 		public EverytimeDialog(JFrame frame, String title) {
 			super(frame, title);
+			jf = frame;
 			setLayout(null);
 			setSize(435, 200);
 			init(frame);
@@ -504,13 +601,236 @@ public class Counter extends JPanel{
 			add(pwField);
 			add(okButton);
 			
+			pwField.addActionListener(new AbstractAction() {
+
+				@Override
+				public void actionPerformed(ActionEvent arg0) {
+					// TODO Auto-generated method stub
+					if(login())setVisible(false);
+				}
+				
+			});
+			
 			okButton.addActionListener(new ActionListener() {
 				@Override
 				public void actionPerformed(ActionEvent e) {
 					// TODO Auto-generated method stub
+					if(login())setVisible(false);
+				}
+			});
+			
+		}
+		
+		boolean login() {
+			Map<String, String> loginedCookie = null;
+			Map<String, String> data = new HashMap<>();
+			data.put("userid", idField.getText());
+			data.put("password", new String(pwField.getPassword()));
+			data.put("redirect", "/");
+			username = idField.getText();
+			try {
+				//세션 쿠키 얻기
+				Response response = Jsoup.connect("https://everytime.kr/user/login")
+						.timeout(3000)
+						.data(data)
+						.method(Connection.Method.POST)
+						.execute();
+				loginedCookie = response.cookies();
+				
+				//학기 기간 정보 가져오기
+				Document doc = Jsoup.connect("https://everytime.kr/find/timetable/subject/semester/list")
+						.timeout(3000)
+						.data(data)
+						.cookies(loginedCookie)
+						.get();
+				
+				SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.KOREA);
+				SimpleDateFormat sdfd = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+				Element resp = doc.select("response").get(0);
+				Elements semesters = resp.select("semester");
+				String year = null, semesterStr = null;
+				
+				for(Element semester : semesters) {
+					String startDate = semester.attr("start_date");
+					String endDate = semester.attr("end_date");
+					long start = 0, end = 0, cur = System.currentTimeMillis();
+					try {
+						start = sdf.parse(startDate).getTime();
+						end = sdf.parse(endDate).getTime();
+					} catch (ParseException e) {
+						// TODO Auto-generated catch block
+						JOptionPane.showMessageDialog(null, "서버 응답을 파싱할 수 없습니다. 개발자에게 문의 바랍니다.", "Server Response Format Changed", JOptionPane.ERROR_MESSAGE);
+						return false;
+					}
+					
+					if(start == 0 || end == 0) {
+						JOptionPane.showMessageDialog(null, "서버 응답을 파싱할 수 없습니다. 개발자에게 문의 바랍니다.", "Server Response Format Changed", JOptionPane.ERROR_MESSAGE);
+						return false;
+					}
+					
+					if(start<=cur) {
+						if(cur<=end) {
+							//found.
+							year = semester.attr("year");
+							semesterStr = semester.attr("semester");
+							break;
+						}
+						//학기 중이 아님
+						JOptionPane.showMessageDialog(null, "지금은 학기 중이 아닙니다.", "학기 정보 오류", JOptionPane.ERROR_MESSAGE);
+						return false;
+					}
+				}
+				
+				data = new HashMap<>();
+				data.put("year", year+"");
+				data.put("semester", semesterStr+"");
+				
+				if(year == null) {
+					JOptionPane.showMessageDialog(null, "예상치 못한 오류가 발생했습니다.", "System Error", JOptionPane.ERROR_MESSAGE);
+					return false;
+				}
+				
+				//현학기 기준 시간표 candidates
+				doc = Jsoup.connect("https://everytime.kr/find/timetable/table/list/semester")
+						.timeout(3000)
+						.data(data)
+						.cookies(loginedCookie)
+						.get();
+				
+				String[] header = {"시간표 이름", "만든 날짜", "마지막 수정"};
+				
+				Element candidateTable = doc.select("response").get(0);
+				Elements candidates = candidateTable.select("table");
+				int size = 0;
+				for(Element candidate : candidates) {size++;}
+				String[][] content = new String[size][3];
+				ArrayList<String> table_id = new ArrayList<>();
+				size = 0;
+				for(Element candidate : candidates) {
+					String cname = candidate.attr("name");
+					String createT = candidate.attr("created_at");
+					String updateT = candidate.attr("updated_at");
+					table_id.add(candidate.attr("id"));
+					
+					try {
+						createT = sdf.format(sdfd.parse(createT));
+						updateT = sdf.format(sdfd.parse(updateT));
+					} catch (ParseException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+					
+					String[] cont = {cname, createT, updateT};
+					content[size++] = cont;
+				}
+				
+				table_selected_result = -2;
+				SelectionDialog sdia = new SelectionDialog(jf, "시간표 선택", header, content, loginedCookie, table_id);
+
+				
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+				JOptionPane.showMessageDialog(null, "계정 아이디 또는 패스워드가 틀렸습니다.", "로그인 오류", JOptionPane.ERROR_MESSAGE);
+				return false;
+			}
+			return true;
+			
+		}
+	}
+	
+	private static class SelectionDialog extends JDialog {
+		JTable table = null;
+		JButton okButton = new JButton("선택");
+		public SelectionDialog(JFrame frame, String title, String[] header, String[][] contents, Map<String, String> cookie, ArrayList<String> table_id) {
+			super(frame, title);
+			setLayout(null);
+			setVisible(true);
+			setSize(400, 200);
+			setLocation(frame.getLocation().x, frame.getLocation().y - 30);
+			
+			JLabel label = new JLabel("사용할 시간표를 선택해주십시오.");
+			label.setBounds(55, 10, 300, 30);
+			label.setFont(Global.CUSTOM_FONT.deriveFont(20F));
+			okButton.setBounds(100, 115, 200, 25);
+			okButton.setFont(Global.CUSTOM_FONT.deriveFont(18F));
+			
+			table = new JTable(contents, header);
+			table.setBounds(50, 40, 280, 65);
+			DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
+			centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
+			for(int i=0;i<table.getColumnModel().getColumnCount();i++)
+				table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
+			table.getColumnModel().getColumn(0).setPreferredWidth(120);
+			table.getColumnModel().getColumn(1).setPreferredWidth(80);
+			table.getColumnModel().getColumn(2).setPreferredWidth(80);
+			table.setFont(Global.CUSTOM_FONT.deriveFont(12F));
+			JScrollPane scrollpane = new JScrollPane(table);
+			scrollpane.setBounds(50, 40, 280, 65);
+			scrollpane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+			
+			add(label);
+			add(scrollpane);
+			add(okButton);
+			
+			okButton.addActionListener(new ActionListener() {
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					// TODO Auto-generated method stub
+					table_selected_result = table.getSelectedRow();
+					
+					Map<String, String> data = new HashMap<>();
+					Document doc = null;
+					
+					if(table_selected_result == -1) {
+						JOptionPane.showMessageDialog(null, "시간표를 선택해주세요!", "오류", JOptionPane.ERROR_MESSAGE);
+						return;
+					}
+					
+					data = new HashMap<>();
+					data.put("id", table_id.get(table_selected_result));
+					
+					try {
+						doc = Jsoup.connect("https://everytime.kr/find/timetable/table")
+								.timeout(3000)
+								.data(data)
+								.cookies(cookie)
+								.get();
+					} catch (IOException e1) {
+						// TODO Auto-generated catch block
+						e1.printStackTrace();
+					}
+					
+					cInfoBundle.clear();
+					
+					Element table = doc.select("table").get(0);
+					Elements subjects = table.select("subject");
+					
+					for(Element subject : subjects) {
+						String pfName = subject.select("professor").attr("value");
+						String cName = subject.select("name").attr("value");
+						String cID = subject.select("internal").attr("value");
+						String tInfo = subject.select("time").attr("value");
+						Elements timeData = subject.select("time").select("data");
+						for(Element td : timeData) {
+							String day = td.attr("day");
+							String startT = td.attr("starttime");
+							String endT = td.attr("endtime");
+							String place = td.attr("place");
+							ClassInfo ci = new ClassInfo(pfName, cName, cID, tInfo, new ClassDetailInfo(day, startT, endT, place));
+							cInfoBundle.add(ci);
+						}
+					}
+					
+					Collections.sort(cInfoBundle);
+					registerFlag = System.currentTimeMillis();
 					setVisible(false);
 				}
 			});
 		}
+	}
+	
+	private static void println(Object obj) {
+		System.out.println(obj);
 	}
 }

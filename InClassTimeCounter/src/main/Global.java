@@ -14,7 +14,7 @@ public class Global {
 	public static final Rectangle PIN_AREA = new Rectangle(FRAME_DIMEN.width - DEFAULT_TILE_SIZE*2, 0, DEFAULT_TILE_SIZE, DEFAULT_TILE_SIZE);
 	
 	public static final Rectangle DRAGGABLE_AREA = new Rectangle(DEFAULT_TILE_SIZE*2-2, 0, EXIT_AREA.x - DEFAULT_TILE_SIZE*2, DEFAULT_TILE_SIZE);
-	public static final Rectangle ALPHA_CHOOSER_AREA = new Rectangle(DEFAULT_TILE_SIZE + 30, 2, 120, 15);
+	public static final Rectangle ALPHA_CHOOSER_AREA = new Rectangle(FRAME_DIMEN.width - DEFAULT_TILE_SIZE*2 - 130, 2, 120, 15);
 	
 	public static final Rectangle FRAME_BOUNDARY = new Rectangle(1920 - FRAME_DIMEN.width, 1080-FRAME_DIMEN.height-30,FRAME_DIMEN.width,FRAME_DIMEN.height);
 	
